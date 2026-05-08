@@ -231,7 +231,7 @@ h3 { color: var(--ink); margin-bottom: 4px; letter-spacing: -0.02em; }
 
 .top-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.7fr) minmax(300px, 0.7fr);
   gap: 20px;
   margin-top: 20px;
 }
@@ -313,6 +313,19 @@ dd { margin: 0; color: var(--ink); font-weight: 900; text-align: right; overflow
 .probe-failed { color: #b94a31; }
 .probe-skipped { color: #9a6c1f; }
 .watch-list span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.strategy-panel {
+  background: linear-gradient(180deg, rgba(236, 246, 255, 0.88), rgba(255, 252, 246, 0.78));
+}
+.strategy-callout {
+  border: 1px solid rgba(95, 183, 255, 0.24);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 14px;
+  margin: 14px 0;
+}
+.strategy-callout strong { display: block; color: #256893; margin-bottom: 6px; }
+.strategy-callout p { margin: 0; color: #596777; line-height: 1.45; }
+.strategy-panel small { color: #9aa4b3; overflow-wrap: anywhere; }
 
 .section-heading {
   display: flex;
@@ -332,6 +345,28 @@ dd { margin: 0; color: var(--ink); font-weight: 900; text-align: right; overflow
 .agent-card.busy { background: linear-gradient(180deg, rgba(235, 255, 243, 0.94), rgba(255, 255, 255, 0.78)); }
 .agent-card.recent { background: linear-gradient(180deg, rgba(235, 246, 255, 0.94), rgba(255, 255, 255, 0.78)); }
 .provider-card.unavailable { opacity: 0.72; }
+.strategy-strip {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-radius: 18px;
+  padding: 11px 12px;
+  margin: 16px 0 10px;
+  background: rgba(31, 46, 69, 0.05);
+  color: #536176;
+}
+.strategy-strip strong {
+  border-radius: 999px;
+  padding: 4px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  background: rgba(255, 255, 255, 0.72);
+}
+.strategy-strip span { line-height: 1.35; font-size: 0.88rem; font-weight: 800; }
+.strategy-strip.preferred { background: rgba(110, 214, 167, 0.16); color: #25714d; }
+.strategy-strip.reserved { background: rgba(255, 177, 95, 0.17); color: #8d6742; }
+.strategy-strip.fallback { background: rgba(140, 124, 247, 0.14); color: #5a4aa8; }
 .agent-identity { display: flex; gap: 12px; align-items: center; }
 .agent-icon {
   width: 54px;

@@ -16,6 +16,13 @@ export interface ModelOption {
   contextWindow?: number;
 }
 
+export interface ProviderStrategy {
+  role: string;
+  recommendation: string;
+  caution?: string;
+  priority: "preferred" | "reserved" | "fallback" | "observed";
+}
+
 export interface ProviderInfo {
   id: ProviderKey;
   label: string;
@@ -30,7 +37,19 @@ export interface ProviderInfo {
     status: "not-tracked" | "unknown";
     note: string;
   };
+  strategy: ProviderStrategy;
   note?: string;
+}
+
+export interface SearchStrategyInfo {
+  enabled: boolean;
+  diskProvider?: string;
+  bravePluginEnabled: boolean;
+  shortTermRoute: string;
+  durableCandidate: string;
+  runtimeNote: string;
+  recommendation: string;
+  sourcePath: string;
 }
 
 export interface AgentInfo {
@@ -77,6 +96,7 @@ export interface MissionSnapshot {
   providers: ProviderInfo[];
   tasks: MissionTask[];
   environment: EnvironmentStatus;
+  searchStrategy: SearchStrategyInfo;
 }
 
 export interface AgentDraftInput {

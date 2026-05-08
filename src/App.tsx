@@ -188,6 +188,7 @@ function App() {
           onCancel={() => setAgentForm(blankAgentForm)}
         />
         <EnvironmentPanel snapshot={snapshot} />
+        <SearchStrategyPanel snapshot={snapshot} />
       </section>
 
       <section className="section-heading">
@@ -333,6 +334,28 @@ function EnvironmentPanel({ snapshot }: { snapshot: MissionSnapshot }) {
   );
 }
 
+function SearchStrategyPanel({ snapshot }: { snapshot: MissionSnapshot }) {
+  const strategy = snapshot.searchStrategy;
+  return (
+    <aside className="panel environment-panel strategy-panel">
+      <p className="eyebrow">Search + model routing</p>
+      <h2>Provider strategy</h2>
+      <dl>
+        <div><dt>web_search disk route</dt><dd>{strategy.diskProvider ?? "unknown"}</dd></div>
+        <div><dt>Search enabled</dt><dd>{strategy.enabled ? "yes" : "no"}</dd></div>
+        <div><dt>Brave plugin</dt><dd>{strategy.bravePluginEnabled ? "enabled" : "not enabled"}</dd></div>
+      </dl>
+      <div className="strategy-callout">
+        <strong>{strategy.shortTermRoute}</strong>
+        <p>{strategy.recommendation}</p>
+      </div>
+      <p className="muted">{strategy.durableCandidate}</p>
+      <p className="safe-note">{strategy.runtimeNote}</p>
+      <small>{sourceLabel(strategy.sourcePath)}</small>
+    </aside>
+  );
+}
+
 function AgentGrid({ agents, onEdit }: { agents: AgentInfo[]; onEdit: (agent: AgentInfo) => void }) {
   return (
     <div className="agent-grid">
@@ -383,6 +406,12 @@ function ProviderGrid({ providers }: { providers: ProviderInfo[] }) {
               <span>{provider.models.filter((model) => model.available).length} models</span>
               <span>{configured} configured</span>
             </div>
+            <div className={`strategy-strip ${provider.strategy.priority}`}>
+              <strong>{provider.strategy.priority}</strong>
+              <span>{provider.strategy.role}</span>
+            </div>
+            <p className="safe-note">{provider.strategy.recommendation}</p>
+            {provider.strategy.caution && <p className="muted">{provider.strategy.caution}</p>}
             <p className="safe-note">{provider.usage.note}</p>
             <div className="model-chips">
               {provider.models.slice(0, 7).map((model) => (

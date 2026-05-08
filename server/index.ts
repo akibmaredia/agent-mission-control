@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import crypto from "node:crypto";
-import { LANES, type AgentDraftInput, type AgentInfo, type EnvironmentStatus, type MissionSnapshot, type MissionTask, type ModelOption, type ProviderInfo, type ProviderKey, type TaskInput, type TaskLane } from "../shared/types.js";
+import { LANES, type AgentDraftInput, type AgentInfo, type EnvironmentStatus, type MissionSnapshot, type MissionTask, type ModelOption, type ProviderInfo, type ProviderKey, type SearchStrategyInfo, type TaskInput, type TaskLane } from "../shared/types.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -26,7 +26,12 @@ function findProjectRoot(): string {
 const PROJECT_ROOT = findProjectRoot();
 const WORKSPACE_ROOT = process.env.AMC_WORKSPACE_ROOT ?? "/Users/tinker/.openclaw/workspace";
 const OPENCLAW_ROOT = process.env.AMC_OPENCLAW_ROOT ?? "/Users/tinker/.openclaw";
-const OPENCLAW_CLI = process.env.OPENCLAW_CLI ?? "/Users/tinker/lib/node_modules/openclaw/dist/index.js";
+const DEFAULT_OPENCLAW_CLI = "/Users/tinker/lib/node_modules/openclaw/dist/index.js";
+function resolveOpenClawCli(): string | undefined {
+  const candidates = [process.env.OPENCLAW_CLI, DEFAULT_OPENCLAW_CLI].filter((candidate): candidate is string => Boolean(candidate && candidate !== "1"));
+  return candidates.find((candidate) => existsSync(candidate));
+}
+const OPENCLAW_CLI = resolveOpenClawCli();
 const HOST = process.env.AMC_HOST ?? "127.0.0.1";
 const PORT = Number(process.env.AMC_PORT ?? 4317);
 const DATA_DIR = path.join(PROJECT_ROOT, "data");
@@ -39,6 +44,33 @@ const PROVIDERS: Array<{ id: ProviderKey; label: string; authNames: string[]; en
   { id: "openai", label: "OpenAI / Codex", authNames: ["openai", "openai-codex"], envKeys: ["OPENAI_API_KEY", "OPENAI_CODEX_API_KEY"] },
   { id: "anthropic", label: "Anthropic / Claude", authNames: ["anthropic", "claude-cli"], envKeys: ["ANTHROPIC_API_KEY"] },
 ];
+
+const PROVIDER_STRATEGY: Record<ProviderKey, ProviderInfo["strategy"]> = {
+  nvidia: {
+    role: "High-limit model pool for bounded Friday/Tadashi subagent work.",
+    recommendation: "Prefer NVIDIA for lightweight coding/testing/research subagents when auth is present and real-world limits look generous.",
+    caution: "V1 can verify auth/catalog presence only; it does not query quota, spend, or remaining limits.",
+    priority: "preferred",
+  },
+  openrouter: {
+    role: "Short-term shared route, primarily preserving Perplexity web_search access.",
+    recommendation: "Reserve OpenRouter capacity for Perplexity-backed web search unless NVIDIA is unavailable or a specific OpenRouter model is required.",
+    caution: "Model work here may consume the same limit pool needed for Perplexity search.",
+    priority: "reserved",
+  },
+  openai: {
+    role: "Codex/OpenAI execution pool for core agents and stronger implementation fallback.",
+    recommendation: "Use for GPT-5.5/Codex-level engineering work after lightweight/high-limit options are insufficient.",
+    caution: "Keep senior/architecture work here; do not burn it on trivial delegated tasks by default.",
+    priority: "fallback",
+  },
+  anthropic: {
+    role: "Default strong reasoning/synthesis pool for main-session work and focused fallback.",
+    recommendation: "Reserve Claude/Anthropic for judgment-heavy synthesis, repair, and final validation rather than first-pass lightweight tasks.",
+    caution: "Configured auth may come from profile/OAuth; values are intentionally hidden.",
+    priority: "reserved",
+  },
+};
 
 interface OpenClawAuthProvider {
   provider?: string;
@@ -216,7 +248,7 @@ async function getOpenClawStatus(): Promise<ProbeResult> {
   const now = Date.now();
   if (probeCache && probeCache.expiresAt > now) return probeCache.result;
 
-  if (!existsSync(OPENCLAW_CLI)) {
+  if (!OPENCLAW_CLI || !existsSync(OPENCLAW_CLI)) {
     const skipped: ProbeResult = { state: "skipped", message: "OpenClaw CLI not found at configured path." };
     probeCache = { expiresAt: now + 60_000, result: skipped };
     return skipped;
@@ -343,6 +375,45 @@ function modelOptionFromAllowed(id: string, provider: ProviderKey): ModelOption 
   };
 }
 
+async function collectSearchStrategy(): Promise<SearchStrategyInfo> {
+  const configPath = path.join(OPENCLAW_ROOT, "openclaw.json");
+  const text = await readText(configPath);
+  let enabled = false;
+  let diskProvider: string | undefined;
+  let bravePluginEnabled = false;
+
+  if (text) {
+    try {
+      const config = JSON.parse(text) as {
+        tools?: { web?: { search?: { provider?: string; enabled?: boolean } } };
+        plugins?: { entries?: Record<string, { enabled?: boolean }> };
+      };
+      enabled = Boolean(config.tools?.web?.search?.enabled);
+      diskProvider = config.tools?.web?.search?.provider;
+      bravePluginEnabled = Boolean(config.plugins?.entries?.brave?.enabled);
+    } catch {
+      // Keep the policy panel useful even if config parsing fails.
+    }
+  }
+
+  const shortTermRoute = diskProvider === "perplexity"
+    ? "Perplexity via OpenRouter for web_search"
+    : diskProvider
+      ? `${diskProvider} for web_search`
+      : "No web_search provider detected in disk config";
+
+  return {
+    enabled,
+    diskProvider,
+    bravePluginEnabled,
+    shortTermRoute,
+    durableCandidate: bravePluginEnabled ? "Brave search is enabled in disk config and is the durable candidate to avoid OpenRouter search-limit burn." : "Brave search is the durable candidate, but disk config does not show it enabled yet.",
+    runtimeNote: "Do not restart Gateway during this build. Disk config may differ from active runtime until Akib approves a later Gateway restart.",
+    recommendation: "Prefer NVIDIA for lightweight/high-limit model work when availability remains healthy; reserve OpenRouter primarily for Perplexity web_search in the short term.",
+    sourcePath: relativeToWorkspace(configPath),
+  };
+}
+
 async function collectProviders(): Promise<{ providers: ProviderInfo[]; probe: ProbeResult }> {
   const checkedAt = nowIso();
   const [envPresence, probe] = await Promise.all([readEnvPresence(), getOpenClawStatus()]);
@@ -397,7 +468,8 @@ async function collectProviders(): Promise<{ providers: ProviderInfo[]; probe: P
       status: authPresent ? "available" : "unavailable",
       auth: { present: authPresent, source: authSourceFromKinds(sourceKinds), checkedAt },
       models: models.map((model) => ({ ...model, available: authPresent && model.available })),
-      usage: { status: "not-tracked", note: "V1 does not query provider quota/limits; this panel reports auth and capability status only." },
+      usage: { status: "not-tracked", note: providerDef.id === "nvidia" ? "Quota/limit generosity is not measurable in V1; treat NVIDIA as preferred only after observed availability stays healthy." : "V1 does not query provider quota/limits; this panel reports auth and capability status only." },
+      strategy: PROVIDER_STRATEGY[providerDef.id],
       note: authPresent
         ? "Auth material is present via environment/profile; API key values are never returned."
         : "No auth material found for this provider in .env or OpenClaw model status.",
@@ -785,9 +857,9 @@ function buildEnvironment(probe: ProbeResult): EnvironmentStatus {
 
 async function buildSnapshot(): Promise<MissionSnapshot> {
   await ensureDataFiles();
-  const [{ providers, probe }, sessions] = await Promise.all([collectProviders(), collectSessionSummaries()]);
+  const [{ providers, probe }, sessions, searchStrategy] = await Promise.all([collectProviders(), collectSessionSummaries(), collectSearchStrategy()]);
   const [agents, tasks] = await Promise.all([collectAgents(providers, sessions, probe), collectTasks()]);
-  return { agents, providers, tasks, environment: buildEnvironment(probe) };
+  return { agents, providers, tasks, environment: buildEnvironment(probe), searchStrategy };
 }
 
 function sendSse(event: string, data: unknown): void {
