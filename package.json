@@ -1,0 +1,29 @@
+{
+  "name": "agent-mission-control",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local mission-control UI and API for OpenClaw agents, providers, and tasks.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5178",
+    "dev:api": "tsx watch server/index.ts",
+    "dev:all": "concurrently -k -n API,UI -c cyan,magenta \"npm:dev:api\" \"npm:dev\"",
+    "build": "tsc -p tsconfig.server.json && tsc -p tsconfig.json && vite build",
+    "start": "node dist-server/server/index.js",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  }
+}
