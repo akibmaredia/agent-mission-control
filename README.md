@@ -58,6 +58,7 @@ server/index.ts
 
 src/App.tsx
   ├─ mission-control dashboard shell
+  ├─ animated agent habitat with state-driven work/chill/rest behaviors
   ├─ agent roster + local draft editor
   ├─ provider/model availability cards
   ├─ provider strategy panel
@@ -99,6 +100,5 @@ V1 reports provider auth/capability status only. It does not claim live quota, r
 
 - AMC-009 — guarded OpenClaw config apply flow after explicit approval
 - AMC-010 — richer usage-limit tracking where provider APIs expose it
-- AMC-011 — animated agent environment polish pass
 - AMC-012 — Gateway runtime sync indicator after approved restart flow exists
 - AMC-013 — Brave-vs-Perplexity search migration evaluation

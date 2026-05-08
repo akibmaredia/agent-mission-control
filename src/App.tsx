@@ -223,24 +223,104 @@ function App() {
 }
 
 function MissionEnvironment({ agents, stats }: { agents: AgentInfo[]; stats: { busyAgents: number; activeAgents: number; availableProviders: number; activeTasks: number } }) {
-  const featured = agents.slice(0, 8);
+  const coreIds = new Set(["jarvis", "friday", "tadashi"]);
+  const featured = [
+    ...agents.filter((agent) => coreIds.has(agent.id)),
+    ...agents.filter((agent) => agent.kind === "subagent" && (agent.status === "busy" || agent.status === "recent")),
+    ...agents.filter((agent) => !coreIds.has(agent.id) && agent.kind !== "subagent"),
+  ].filter((agent, index, list) => list.findIndex((candidate) => candidate.id === agent.id) === index).slice(0, 6);
+
   return (
-    <div className="environment-card" aria-label="Living mission environment">
-      <div className="sky-gradient" />
+    <div className="environment-card" aria-label="Animated agent habitat showing live agent state">
+      <div className="habitat-sky" />
       <div className="moon" />
-      <div className="terrain" />
-      {featured.map((agent, index) => (
-        <div key={agent.id} className={`agent-orb ${agent.status}`} style={{ "--i": index } as CSSProperties} title={`${agent.name}: ${statusLabel(agent.status)}`}>
-          <span>{agent.icon}</span>
-        </div>
-      ))}
+      <div className="habitat-window" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div className="habitat-board" aria-hidden="true">
+        <strong>Mission board</strong>
+        <i />
+        <i />
+        <i />
+      </div>
+      <div className="habitat-floor" />
+      <div className="habitat-path" aria-hidden="true" />
+      {featured.map((agent, index) => <HabitatAgent key={agent.id} agent={agent} index={index} />)}
       <div className="environment-stats">
         <strong>{stats.busyAgents}</strong><span>busy</span>
         <strong>{stats.availableProviders}</strong><span>providers</span>
         <strong>{stats.activeTasks}</strong><span>active tasks</span>
       </div>
+      <div className="habitat-caption">State-driven diorama · work, check in, rest</div>
     </div>
   );
+}
+
+type AgentBehavior = "busy" | "recent" | "idle" | "unknown";
+
+function behaviorForStatus(status: AgentInfo["status"]): { key: AgentBehavior; label: string } {
+  if (status === "busy") return { key: "busy", label: "working at a console" };
+  if (status === "recent") return { key: "recent", label: "walking the floor" };
+  if (status === "idle") return { key: "idle", label: "resting in standby" };
+  return { key: "unknown", label: "waiting for signal" };
+}
+
+function HabitatAgent({ agent, index }: { agent: AgentInfo; index: number }) {
+  const behavior = behaviorForStatus(agent.status);
+  return (
+    <div
+      className={`habitat-agent slot-${index} is-${behavior.key} status-${agent.status}`}
+      style={{ "--i": index } as CSSProperties}
+      title={`${agent.name}: ${statusLabel(agent.status)} — ${behavior.label}`}
+      aria-label={`${agent.name}: ${statusLabel(agent.status)}, ${behavior.label}`}
+    >
+      <div className="agent-motion">
+        <AgentProp behavior={behavior.key} />
+        <div className="figurine" aria-hidden="true">
+          <span className="figure-head"><span /></span>
+          <span className="figure-body"><span className="figure-badge">{agent.icon}</span></span>
+          <span className="figure-arm arm-left" />
+          <span className="figure-arm arm-right" />
+          <span className="figure-leg leg-left" />
+          <span className="figure-leg leg-right" />
+        </div>
+        <span className="figure-shadow" />
+        <span className="agent-name-tag">{agent.name}</span>
+      </div>
+    </div>
+  );
+}
+
+function AgentProp({ behavior }: { behavior: AgentBehavior }) {
+  if (behavior === "busy") {
+    return (
+      <div className="agent-prop mini-console" aria-hidden="true">
+        <span />
+        <i />
+        <i />
+        <i />
+      </div>
+    );
+  }
+  if (behavior === "idle") {
+    return (
+      <div className="agent-prop rest-zone" aria-hidden="true">
+        <span className="sleep-bubble" />
+        <i className="coffee-cup" />
+      </div>
+    );
+  }
+  if (behavior === "recent") {
+    return (
+      <div className="agent-prop check-board" aria-hidden="true">
+        <span />
+        <i />
+      </div>
+    );
+  }
+  return <div className="agent-prop signal-dish" aria-hidden="true"><span /></div>;
 }
 
 function AgentComposer({

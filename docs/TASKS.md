@@ -4,7 +4,6 @@
 
 - [ ] AMC-009 — Apply OpenClaw config changes safely from UI after explicit approval
 - [ ] AMC-010 — Add richer usage-limit tracking where provider APIs expose it
-- [ ] AMC-011 — Add animated agent environment map polish pass
 - [ ] AMC-012 — Gateway runtime sync indicator after Akib-approved restart flow exists
 - [ ] AMC-013 — Brave-vs-Perplexity search provider comparison and migration ticket
 
@@ -16,6 +15,7 @@
 
 ## Done
 
+- [x] AMC-011 — Animated agent habitat with state-driven work/chill/rest behavior
 - [x] AMC-008 — README, build verification, and local demo
 
 - [x] AMC-000 — Initialize repo, brief, and task trail
