@@ -57,11 +57,11 @@ server/index.ts
   └─ serves the built Vite app from dist/
 
 src/App.tsx
-  ├─ mission-control dashboard shell
-  ├─ animated agent habitat with state-driven work/chill/rest behaviors
-  ├─ agent roster + local draft editor
-  ├─ provider/model availability cards
-  ├─ provider strategy panel
+  ├─ mission-control dashboard shell with sidebar IA
+  ├─ `/` high-level living operations room and animated agent habitat
+  ├─ click-to-config agent figurines with progressive disclosure drawer
+  ├─ `/agents`, `/providers`, `/tasks`, `/console` secondary routes
+  ├─ provider/model availability cards and strategy panel
   └─ task board + local task creator
 ```
 
@@ -69,9 +69,9 @@ src/App.tsx
 
 Current policy is surfaced explicitly:
 
-- **NVIDIA** — preferred lightweight/high-limit pool for bounded Friday/Tadashi subagent work when availability remains healthy.
-- **OpenRouter** — reserve primarily for Perplexity-backed `web_search` in the short term to avoid burning shared limits on model work.
-- **Perplexity via OpenRouter** — current disk `web_search` route, but active runtime may need a later Akib-approved Gateway restart.
+- **NVIDIA** — preferred high-limit pool for bounded lightweight subagents spawned by Friday/Tadashi. Tadashi himself stays on premium models for engineering judgment, review, architecture, and correctness.
+- **OpenRouter** — credits are exhausted; do not use it for lightweight subagent model work right now. Keep route awareness focused on search/runtime diagnostics until credits recover.
+- **Perplexity via OpenRouter** — current disk `web_search` route, but active runtime may need a later Akib-approved Gateway restart and credit availability still matters.
 - **Brave** — durable search candidate so search does not consume OpenRouter capacity.
 - **OpenAI/Codex + Anthropic** — stronger/core pools reserved for senior judgment, implementation fallback, synthesis, and validation.
 

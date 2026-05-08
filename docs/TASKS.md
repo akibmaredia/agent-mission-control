@@ -15,6 +15,7 @@
 
 ## Done
 
+- [x] AMC-015 — Reorganize Mission Control IA into overview-first home, sidebar routes, and click-to-config agent drawer
 - [x] AMC-011 — Animated agent habitat with state-driven work/chill/rest behavior
 - [x] AMC-008 — README, build verification, and local demo
 
@@ -26,4 +27,4 @@
 - [x] AMC-005 — Agent roster cards and live status
 - [x] AMC-006 — Provider/model dropdown filtered by availability
 - [x] AMC-007 — High-level task board from memory/logs/task files
-- [x] AMC-014 — Provider strategy panel: Perplexity/OpenRouter search, Brave candidate, NVIDIA preferred lightweight pool
+- [x] AMC-014 — Provider strategy panel: Perplexity/OpenRouter search, Brave candidate, NVIDIA preferred lightweight subagent pool

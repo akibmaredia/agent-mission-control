@@ -50,12 +50,45 @@ function sourceLabel(source: string): string {
   return source.replace(/^~\/\.openclaw\//, "~/.openclaw/").replace(/\//g, " › ");
 }
 
+type RouteKey = "home" | "agents" | "providers" | "tasks" | "console";
+
+type RouteItem = {
+  key: RouteKey;
+  path: string;
+  label: string;
+  description: string;
+};
+
+const routeItems: RouteItem[] = [
+  { key: "home", path: "/", label: "Home", description: "Living ops room" },
+  { key: "agents", path: "/agents", label: "Agents", description: "Roster + drafts" },
+  { key: "providers", path: "/providers", label: "Providers", description: "Auth + model pools" },
+  { key: "tasks", path: "/tasks", label: "Tasks", description: "Mission board" },
+  { key: "console", path: "/console", label: "Console", description: "Dense admin view" },
+];
+
+function routeFromPath(pathname: string): RouteKey {
+  if (pathname.startsWith("/agents")) return "agents";
+  if (pathname.startsWith("/providers")) return "providers";
+  if (pathname.startsWith("/tasks")) return "tasks";
+  if (pathname.startsWith("/console") || pathname.startsWith("/settings")) return "console";
+  return "home";
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState<MissionSnapshot | null>(null);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [agentForm, setAgentForm] = useState<AgentFormState>(blankAgentForm);
   const [taskForm, setTaskForm] = useState<TaskInput>({ title: "", lane: "Planned", description: "" });
   const [notice, setNotice] = useState<string>("");
+  const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname));
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncRoute = () => setRoute(routeFromPath(window.location.pathname));
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -99,7 +132,16 @@ function App() {
     };
   }, [providers, snapshot]);
 
-  function editAgent(agent: AgentInfo) {
+  const selectedAgent = selectedAgentId ? snapshot?.agents.find((agent) => agent.id === selectedAgentId) : undefined;
+
+  function navigate(path: string) {
+    const nextRoute = routeFromPath(path);
+    if (window.location.pathname !== path) window.history.pushState(null, "", path);
+    setRoute(nextRoute);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function fillAgentForm(agent: AgentInfo) {
     setAgentForm({
       id: agent.id,
       name: agent.name,
@@ -109,7 +151,17 @@ function App() {
       reasoning: agent.reasoning ?? "",
       icon: agent.icon,
     });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function editAgent(agent: AgentInfo) {
+    fillAgentForm(agent);
+    setSelectedAgentId(null);
+    navigate("/agents");
+  }
+
+  function openAgent(agent: AgentInfo) {
+    fillAgentForm(agent);
+    setSelectedAgentId(agent.id);
   }
 
   function providerChanged(providerId: ProviderKey | "") {
@@ -134,6 +186,7 @@ function App() {
     await api(path, { method: agentForm.id ? "PATCH" : "POST", body: JSON.stringify(payload) });
     setNotice(`${payload.name} saved as a local draft. OpenClaw runtime config was not changed.`);
     setAgentForm(blankAgentForm);
+    setSelectedAgentId(null);
   }
 
   async function addTask(event: FormEvent) {
@@ -155,29 +208,65 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
-      <section className="hero panel">
-        <div>
-          <p className="eyebrow">Local-only • 127.0.0.1 by default • no secret display</p>
-          <h1>Agent Mission Control</h1>
-          <p className="hero-copy">A living room for Jarvis, Friday, Tadashi, subagents, providers, and mission workstreams.</p>
-          <div className="hero-actions">
-            <span className={`live-pill ${connection}`}>{connection === "live" ? "Live SSE" : connection === "connecting" ? "Connecting" : "Polling fallback"}</span>
-            <span>{snapshot.environment.boundTo}:{snapshot.environment.port}</span>
-            <span>Last refresh {new Date(snapshot.environment.lastRefresh).toLocaleTimeString()}</span>
-          </div>
-        </div>
-        <MissionEnvironment agents={snapshot.agents} stats={stats} />
-      </section>
+    <div className="app-shell shell-layout">
+      <ShellSidebar route={route} stats={stats} snapshot={snapshot} connection={connection} onNavigate={navigate} />
+      <main className="mission-page">
+        <PageTopBar route={route} snapshot={snapshot} connection={connection} />
+        {notice && (
+          <button className="notice" onClick={() => setNotice("")} type="button">
+            {notice}
+          </button>
+        )}
 
-      {notice && (
-        <button className="notice" onClick={() => setNotice("")} type="button">
-          {notice}
-        </button>
-      )}
-
-      <section className="top-grid">
-        <AgentComposer
+        {route === "home" && (
+          <HomePage
+            snapshot={snapshot}
+            stats={stats}
+            connection={connection}
+            onNavigate={navigate}
+            onSelectAgent={openAgent}
+          />
+        )}
+        {route === "agents" && (
+          <AgentsPage
+            snapshot={snapshot}
+            form={agentForm}
+            providers={availableProviders}
+            selectedProvider={selectedProvider}
+            availableModels={availableModels}
+            onChange={setAgentForm}
+            onProviderChange={providerChanged}
+            onSubmit={saveAgent}
+            onCancel={() => setAgentForm(blankAgentForm)}
+            onEdit={editAgent}
+          />
+        )}
+        {route === "providers" && <ProvidersPage snapshot={snapshot} stats={stats} />}
+        {route === "tasks" && <TasksPage snapshot={snapshot} form={taskForm} onChange={setTaskForm} onSubmit={addTask} />}
+        {route === "console" && (
+          <ConsolePage
+            snapshot={snapshot}
+            stats={stats}
+            connection={connection}
+            form={agentForm}
+            providers={availableProviders}
+            selectedProvider={selectedProvider}
+            availableModels={availableModels}
+            taskForm={taskForm}
+            onChange={setAgentForm}
+            onProviderChange={providerChanged}
+            onSubmit={saveAgent}
+            onCancel={() => setAgentForm(blankAgentForm)}
+            onTaskChange={setTaskForm}
+            onTaskSubmit={addTask}
+            onEdit={editAgent}
+            onSelectAgent={openAgent}
+          />
+        )}
+      </main>
+      {selectedAgent && (
+        <AgentDetailDrawer
+          agent={selectedAgent}
           form={agentForm}
           providers={availableProviders}
           selectedProvider={selectedProvider}
@@ -185,12 +274,276 @@ function App() {
           onChange={setAgentForm}
           onProviderChange={providerChanged}
           onSubmit={saveAgent}
-          onCancel={() => setAgentForm(blankAgentForm)}
+          onClose={() => setSelectedAgentId(null)}
+          onOpenRoute={() => {
+            setSelectedAgentId(null);
+            navigate("/agents");
+          }}
         />
+      )}
+    </div>
+  );
+}
+
+function ShellSidebar({ route, stats, snapshot, connection, onNavigate }: { route: RouteKey; stats: { busyAgents: number; activeAgents: number; availableProviders: number; activeTasks: number }; snapshot: MissionSnapshot; connection: ConnectionState; onNavigate: (path: string) => void }) {
+  return (
+    <aside className="sidebar panel">
+      <a
+        className="sidebar-brand"
+        href="/"
+        onClick={(event) => {
+          event.preventDefault();
+          onNavigate("/");
+        }}
+      >
+        <span>🛰️</span>
+        <div>
+          <strong>Mission Control</strong>
+          <small>Operations room</small>
+        </div>
+      </a>
+      <nav className="sidebar-nav" aria-label="Mission Control sections">
+        {routeItems.map((item) => (
+          <a
+            key={item.key}
+            href={item.path}
+            className={route === item.key ? "active" : undefined}
+            onClick={(event) => {
+              event.preventDefault();
+              onNavigate(item.path);
+            }}
+          >
+            <strong>{item.label}</strong>
+            <span>{item.description}</span>
+          </a>
+        ))}
+      </nav>
+      <div className="sidebar-status">
+        <span className={`live-pill ${connection}`}>{connection === "live" ? "Live SSE" : connection === "connecting" ? "Connecting" : "Fallback"}</span>
+        <div><strong>{stats.activeAgents}</strong><span>active agents</span></div>
+        <div><strong>{stats.availableProviders}/{snapshot.providers.length}</strong><span>providers</span></div>
+      </div>
+    </aside>
+  );
+}
+
+function PageTopBar({ route, snapshot, connection }: { route: RouteKey; snapshot: MissionSnapshot; connection: ConnectionState }) {
+  const activeRoute = routeItems.find((item) => item.key === route) ?? routeItems[0];
+  return (
+    <header className="page-topbar">
+      <div>
+        <p className="eyebrow">{activeRoute.description}</p>
+        <h2>{activeRoute.label === "Home" ? "Live Mission Room" : activeRoute.label}</h2>
+      </div>
+      <div className="hero-actions">
+        <span className={`live-pill ${connection}`}>{connection === "live" ? "Live SSE" : connection === "connecting" ? "Connecting" : "Polling fallback"}</span>
+        <span>{snapshot.environment.boundTo}:{snapshot.environment.port}</span>
+        <span>Last refresh {new Date(snapshot.environment.lastRefresh).toLocaleTimeString()}</span>
+      </div>
+    </header>
+  );
+}
+
+function HomePage({ snapshot, stats, connection, onNavigate, onSelectAgent }: { snapshot: MissionSnapshot; stats: { busyAgents: number; activeAgents: number; availableProviders: number; activeTasks: number }; connection: ConnectionState; onNavigate: (path: string) => void; onSelectAgent: (agent: AgentInfo) => void }) {
+  return (
+    <>
+      <section className="hero overview-hero panel">
+        <div>
+          <p className="eyebrow">Local-only • overview first • config on demand</p>
+          <h1>Agent Mission Control</h1>
+          <p className="hero-copy">A living operations room for Jarvis, Friday, Tadashi, subagents, providers, and mission workstreams.</p>
+          <div className="hero-actions">
+            <span className={`live-pill ${connection}`}>{connection === "live" ? "Live SSE" : connection === "connecting" ? "Connecting" : "Polling fallback"}</span>
+            <span>{stats.activeAgents} active agents</span>
+            <span>{stats.activeTasks} active tasks</span>
+          </div>
+          <div className="overview-actions">
+            <button className="primary-button" type="button" onClick={() => onNavigate("/console")}>Open console</button>
+            <button className="ghost-button" type="button" onClick={() => onNavigate("/tasks")}>Review tasks</button>
+          </div>
+        </div>
+        <MissionEnvironment agents={snapshot.agents} stats={stats} onSelectAgent={onSelectAgent} />
+      </section>
+
+      <OverviewStats snapshot={snapshot} stats={stats} connection={connection} />
+
+      <section className="overview-grid">
+        <AgentGlance agents={snapshot.agents} onSelectAgent={onSelectAgent} onNavigate={onNavigate} />
+        <TaskGlance tasks={snapshot.tasks} onNavigate={onNavigate} />
+        <ProviderGlance providers={snapshot.providers} onNavigate={onNavigate} />
+      </section>
+    </>
+  );
+}
+
+function OverviewStats({ snapshot, stats, connection }: { snapshot: MissionSnapshot; stats: { busyAgents: number; activeAgents: number; availableProviders: number; activeTasks: number }; connection: ConnectionState }) {
+  const cards = [
+    { label: "Agents active", value: `${stats.activeAgents}/${snapshot.agents.length}`, detail: `${stats.busyAgents} working now` },
+    { label: "Providers online", value: `${stats.availableProviders}/${snapshot.providers.length}`, detail: "auth/capability presence" },
+    { label: "Active tasks", value: stats.activeTasks.toString(), detail: "in progress, waiting, review" },
+    { label: "Runtime link", value: connection === "live" ? "Live" : connection === "connecting" ? "Syncing" : "Fallback", detail: `${snapshot.environment.boundTo}:${snapshot.environment.port}` },
+  ];
+  return (
+    <section className="overview-stats" aria-label="Mission status summary">
+      {cards.map((card) => (
+        <article key={card.label} className="panel stat-card">
+          <span>{card.label}</span>
+          <strong>{card.value}</strong>
+          <p>{card.detail}</p>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function AgentGlance({ agents, onSelectAgent, onNavigate }: { agents: AgentInfo[]; onSelectAgent: (agent: AgentInfo) => void; onNavigate: (path: string) => void }) {
+  return (
+    <article className="panel glance-panel">
+      <div className="glance-heading">
+        <div>
+          <p className="eyebrow">Agents</p>
+          <h3>Roster pulse</h3>
+        </div>
+        <button type="button" className="ghost-button" onClick={() => onNavigate("/agents")}>Manage</button>
+      </div>
+      <div className="agent-pulse-list">
+        {agents.slice(0, 6).map((agent) => (
+          <button key={agent.id} type="button" onClick={() => onSelectAgent(agent)}>
+            <span className={`mini-status ${agent.status}`}>{agent.icon}</span>
+            <strong>{agent.name}</strong>
+            <small>{statusLabel(agent.status)}</small>
+          </button>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function TaskGlance({ tasks, onNavigate }: { tasks: MissionTask[]; onNavigate: (path: string) => void }) {
+  const activeLanes: TaskLane[] = ["In Progress", "Waiting/Blocked", "Review"];
+  const activeTasks = tasks.filter((task) => activeLanes.includes(task.lane)).slice(0, 5);
+  const laneCounts = LANES.map((lane) => ({ lane, count: tasks.filter((task) => task.lane === lane).length }));
+  return (
+    <article className="panel glance-panel">
+      <div className="glance-heading">
+        <div>
+          <p className="eyebrow">Tasks</p>
+          <h3>Workstream glance</h3>
+        </div>
+        <button type="button" className="ghost-button" onClick={() => onNavigate("/tasks")}>Open board</button>
+      </div>
+      <div className="lane-sparkline">
+        {laneCounts.map((item) => <span key={item.lane} title={`${item.lane}: ${item.count}`}>{item.count}</span>)}
+      </div>
+      <div className="task-glance-list">
+        {(activeTasks.length ? activeTasks : tasks.slice(0, 4)).map((task) => (
+          <div key={task.id}>
+            <strong>{task.title}</strong>
+            <small>{task.lane} · {task.source}</small>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function ProviderGlance({ providers, onNavigate }: { providers: ProviderInfo[]; onNavigate: (path: string) => void }) {
+  return (
+    <article className="panel glance-panel">
+      <div className="glance-heading">
+        <div>
+          <p className="eyebrow">Providers</p>
+          <h3>Model pools</h3>
+        </div>
+        <button type="button" className="ghost-button" onClick={() => onNavigate("/providers")}>Inspect</button>
+      </div>
+      <div className="provider-glance-list">
+        {providers.map((provider) => (
+          <div key={provider.id}>
+            <span className={`status-dot ${provider.status}`}>{statusLabel(provider.status)}</span>
+            <strong>{provider.label}</strong>
+            <small>{provider.models.filter((model) => model.available).length} models · {provider.strategy.priority}</small>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function AgentsPage({ snapshot, form, providers, selectedProvider, availableModels, onChange, onProviderChange, onSubmit, onCancel, onEdit }: { snapshot: MissionSnapshot; form: AgentFormState; providers: ProviderInfo[]; selectedProvider?: ProviderInfo; availableModels: ProviderInfo["models"]; onChange: (form: AgentFormState) => void; onProviderChange: (provider: ProviderKey | "") => void; onSubmit: (event: FormEvent) => void; onCancel: () => void; onEdit: (agent: AgentInfo) => void }) {
+  return (
+    <>
+      <section className="section-heading route-heading">
+        <div>
+          <p className="eyebrow">Progressive disclosure</p>
+          <h2>Agent roster and local draft config</h2>
+        </div>
+        <span>{snapshot.agents.length} tracked</span>
+      </section>
+      <section className="agents-route-grid">
+        <AgentComposer form={form} providers={providers} selectedProvider={selectedProvider} availableModels={availableModels} onChange={onChange} onProviderChange={onProviderChange} onSubmit={onSubmit} onCancel={onCancel} />
+        <AgentGrid agents={snapshot.agents} onEdit={onEdit} />
+      </section>
+    </>
+  );
+}
+
+function ProvidersPage({ snapshot, stats }: { snapshot: MissionSnapshot; stats: { availableProviders: number } }) {
+  return (
+    <>
+      <section className="top-grid route-panels">
         <EnvironmentPanel snapshot={snapshot} />
         <SearchStrategyPanel snapshot={snapshot} />
       </section>
+      <section className="section-heading route-heading">
+        <div>
+          <p className="eyebrow">Providers</p>
+          <h2>Auth and model capability</h2>
+        </div>
+        <span>{stats.availableProviders}/{snapshot.providers.length} available</span>
+      </section>
+      <ProviderGrid providers={snapshot.providers} />
+    </>
+  );
+}
 
+function TasksPage({ snapshot, form, onChange, onSubmit }: { snapshot: MissionSnapshot; form: TaskInput; onChange: (form: TaskInput) => void; onSubmit: (event: FormEvent) => void }) {
+  return (
+    <>
+      <section className="section-heading route-heading">
+        <div>
+          <p className="eyebrow">Task Board</p>
+          <h2>High-level workstream map</h2>
+        </div>
+        <span>{snapshot.tasks.length} cards from docs, memory, logs, and local tasks</span>
+      </section>
+      <TaskComposer form={form} onChange={onChange} onSubmit={onSubmit} />
+      <TaskBoard tasks={snapshot.tasks} />
+    </>
+  );
+}
+
+function ConsolePage({ snapshot, stats, connection, form, providers, selectedProvider, availableModels, taskForm, onChange, onProviderChange, onSubmit, onCancel, onTaskChange, onTaskSubmit, onEdit, onSelectAgent }: { snapshot: MissionSnapshot; stats: { busyAgents: number; activeAgents: number; availableProviders: number; activeTasks: number }; connection: ConnectionState; form: AgentFormState; providers: ProviderInfo[]; selectedProvider?: ProviderInfo; availableModels: ProviderInfo["models"]; taskForm: TaskInput; onChange: (form: AgentFormState) => void; onProviderChange: (provider: ProviderKey | "") => void; onSubmit: (event: FormEvent) => void; onCancel: () => void; onTaskChange: (form: TaskInput) => void; onTaskSubmit: (event: FormEvent) => void; onEdit: (agent: AgentInfo) => void; onSelectAgent: (agent: AgentInfo) => void }) {
+  return (
+    <>
+      <section className="hero console-hero panel">
+        <div>
+          <p className="eyebrow">Dense console • secondary route</p>
+          <h1>Console</h1>
+          <p className="hero-copy">The original all-up admin surface remains here for focused configuration and inspection.</p>
+          <div className="hero-actions">
+            <span className={`live-pill ${connection}`}>{connection === "live" ? "Live SSE" : connection === "connecting" ? "Connecting" : "Polling fallback"}</span>
+            <span>{snapshot.environment.boundTo}:{snapshot.environment.port}</span>
+            <span>Last refresh {new Date(snapshot.environment.lastRefresh).toLocaleTimeString()}</span>
+          </div>
+        </div>
+        <MissionEnvironment agents={snapshot.agents} stats={stats} onSelectAgent={onSelectAgent} />
+      </section>
+      <section className="top-grid">
+        <AgentComposer form={form} providers={providers} selectedProvider={selectedProvider} availableModels={availableModels} onChange={onChange} onProviderChange={onProviderChange} onSubmit={onSubmit} onCancel={onCancel} />
+        <EnvironmentPanel snapshot={snapshot} />
+        <SearchStrategyPanel snapshot={snapshot} />
+      </section>
       <section className="section-heading">
         <div>
           <p className="eyebrow">Roster</p>
@@ -198,17 +551,15 @@ function App() {
         </div>
         <span>{snapshot.agents.length} tracked</span>
       </section>
-      <AgentGrid agents={snapshot.agents} onEdit={editAgent} />
-
+      <AgentGrid agents={snapshot.agents} onEdit={onEdit} />
       <section className="section-heading">
         <div>
           <p className="eyebrow">Providers</p>
           <h2>Auth and model capability</h2>
         </div>
-        <span>{stats.availableProviders}/{providers.length} available</span>
+        <span>{stats.availableProviders}/{snapshot.providers.length} available</span>
       </section>
-      <ProviderGrid providers={providers} />
-
+      <ProviderGrid providers={snapshot.providers} />
       <section className="section-heading">
         <div>
           <p className="eyebrow">Task Board</p>
@@ -216,13 +567,56 @@ function App() {
         </div>
         <span>{snapshot.tasks.length} cards from docs, memory, logs, and local tasks</span>
       </section>
-      <TaskComposer form={taskForm} onChange={setTaskForm} onSubmit={addTask} />
+      <TaskComposer form={taskForm} onChange={onTaskChange} onSubmit={onTaskSubmit} />
       <TaskBoard tasks={snapshot.tasks} />
-    </main>
+    </>
   );
 }
 
-function MissionEnvironment({ agents, stats }: { agents: AgentInfo[]; stats: { busyAgents: number; activeAgents: number; availableProviders: number; activeTasks: number } }) {
+function AgentDetailDrawer({ agent, form, providers, selectedProvider, availableModels, onChange, onProviderChange, onSubmit, onClose, onOpenRoute }: { agent: AgentInfo; form: AgentFormState; providers: ProviderInfo[]; selectedProvider?: ProviderInfo; availableModels: ProviderInfo["models"]; onChange: (form: AgentFormState) => void; onProviderChange: (provider: ProviderKey | "") => void; onSubmit: (event: FormEvent) => void; onClose: () => void; onOpenRoute: () => void }) {
+  return (
+    <div className="drawer-layer" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <aside className="agent-drawer panel" aria-label={`${agent.name} detail and configuration`}>
+        <div className="drawer-header">
+          <div className="agent-identity">
+            <div className="agent-icon">{agent.icon}</div>
+            <div>
+              <p className="eyebrow">Agent detail</p>
+              <h2>{agent.name}</h2>
+              <p>{agent.role}</p>
+            </div>
+          </div>
+          <button type="button" className="ghost-button" onClick={onClose}>Close</button>
+        </div>
+        <div className="drawer-facts">
+          <span className={`status-dot ${agent.status}`}>{statusLabel(agent.status)}</span>
+          <span>{agent.provider}</span>
+          <strong>{agent.model}</strong>
+        </div>
+        <p className="task-summary">{agent.taskSummary}</p>
+        <p className="safe-note">Source: {sourceLabel(agent.source)}</p>
+        {agent.kind === "subagent" ? (
+          <p className="safe-note">Subagent traces are observational only. Prompt contents stay hidden; configure parent agents from the roster route.</p>
+        ) : (
+          <div className="drawer-config">
+            <div className="glance-heading">
+              <div>
+                <p className="eyebrow">Local draft</p>
+                <h3>Adjust this agent</h3>
+              </div>
+              <button type="button" className="ghost-button" onClick={onOpenRoute}>Full route</button>
+            </div>
+            <AgentComposer form={form} providers={providers} selectedProvider={selectedProvider} availableModels={availableModels} onChange={onChange} onProviderChange={onProviderChange} onSubmit={onSubmit} onCancel={onClose} />
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+}
+
+function MissionEnvironment({ agents, stats, onSelectAgent }: { agents: AgentInfo[]; stats: { busyAgents: number; activeAgents: number; availableProviders: number; activeTasks: number }; onSelectAgent?: (agent: AgentInfo) => void }) {
   const coreIds = new Set(["jarvis", "friday", "tadashi"]);
   const featured = [
     ...agents.filter((agent) => coreIds.has(agent.id)),
@@ -247,7 +641,7 @@ function MissionEnvironment({ agents, stats }: { agents: AgentInfo[]; stats: { b
       </div>
       <div className="habitat-floor" />
       <div className="habitat-path" aria-hidden="true" />
-      {featured.map((agent, index) => <HabitatAgent key={agent.id} agent={agent} index={index} />)}
+      {featured.map((agent, index) => <HabitatAgent key={agent.id} agent={agent} index={index} onSelectAgent={onSelectAgent} />)}
       <div className="environment-stats">
         <strong>{stats.busyAgents}</strong><span>busy</span>
         <strong>{stats.availableProviders}</strong><span>providers</span>
@@ -267,14 +661,16 @@ function behaviorForStatus(status: AgentInfo["status"]): { key: AgentBehavior; l
   return { key: "unknown", label: "waiting for signal" };
 }
 
-function HabitatAgent({ agent, index }: { agent: AgentInfo; index: number }) {
+function HabitatAgent({ agent, index, onSelectAgent }: { agent: AgentInfo; index: number; onSelectAgent?: (agent: AgentInfo) => void }) {
   const behavior = behaviorForStatus(agent.status);
   return (
-    <div
+    <button
+      type="button"
       className={`habitat-agent slot-${index} is-${behavior.key} status-${agent.status}`}
       style={{ "--i": index } as CSSProperties}
       title={`${agent.name}: ${statusLabel(agent.status)} — ${behavior.label}`}
       aria-label={`${agent.name}: ${statusLabel(agent.status)}, ${behavior.label}`}
+      onClick={() => onSelectAgent?.(agent)}
     >
       <div className="agent-motion">
         <AgentProp behavior={behavior.key} />
@@ -289,7 +685,7 @@ function HabitatAgent({ agent, index }: { agent: AgentInfo; index: number }) {
         <span className="figure-shadow" />
         <span className="agent-name-tag">{agent.name}</span>
       </div>
-    </div>
+    </button>
   );
 }
 

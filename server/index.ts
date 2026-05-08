@@ -47,20 +47,20 @@ const PROVIDERS: Array<{ id: ProviderKey; label: string; authNames: string[]; en
 
 const PROVIDER_STRATEGY: Record<ProviderKey, ProviderInfo["strategy"]> = {
   nvidia: {
-    role: "High-limit model pool for bounded Friday/Tadashi subagent work.",
-    recommendation: "Prefer NVIDIA for lightweight coding/testing/research subagents when auth is present and real-world limits look generous.",
-    caution: "V1 can verify auth/catalog presence only; it does not query quota, spend, or remaining limits.",
+    role: "High-limit pool for bounded lightweight subagents spawned by Friday/Tadashi.",
+    recommendation: "Prefer NVIDIA for atomic draft coding/testing/research subagents when auth is present; Tadashi still validates outputs with premium judgment.",
+    caution: "Never move Tadashi himself to NVIDIA. V1 can verify auth/catalog presence only; it does not query quota, spend, or remaining limits.",
     priority: "preferred",
   },
   openrouter: {
-    role: "Short-term shared route, primarily preserving Perplexity web_search access.",
-    recommendation: "Reserve OpenRouter capacity for Perplexity-backed web search unless NVIDIA is unavailable or a specific OpenRouter model is required.",
-    caution: "Model work here may consume the same limit pool needed for Perplexity search.",
+    role: "Credits exhausted; do not use for lightweight subagent model work right now.",
+    recommendation: "Avoid OpenRouter for delegated model work until credits recover; keep any remaining route awareness focused on search/runtime diagnostics.",
+    caution: "Model work here may consume the same limit pool needed for Perplexity search, and current credits are exhausted.",
     priority: "reserved",
   },
   openai: {
     role: "Codex/OpenAI execution pool for core agents and stronger implementation fallback.",
-    recommendation: "Use for GPT-5.5/Codex-level engineering work after lightweight/high-limit options are insufficient.",
+    recommendation: "Use GPT-5.5/Codex-class models for engineering execution, final correctness, and Tadashi-level validation when lightweight subagents are insufficient.",
     caution: "Keep senior/architecture work here; do not burn it on trivial delegated tasks by default.",
     priority: "fallback",
   },
