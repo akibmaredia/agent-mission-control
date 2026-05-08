@@ -2,6 +2,11 @@
 
 These files are the user-provided visual standard/reference images for the Agent Mission Control home experience:
 
+Primary artifact copies:
+- `artifacts/design/standard-character-figurines.png`
+- `artifacts/design/standard-space-diorama.png`
+
+Documentation reference copies:
 - `docs/design/reference/standard-character-space-01.png`
 - `docs/design/reference/standard-character-space-02.png`
 
