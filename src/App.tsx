@@ -627,7 +627,10 @@ function MissionEnvironment({ agents, stats, onSelectAgent }: { agents: AgentInf
   return (
     <div className="environment-card" aria-label="Animated agent habitat showing live agent state">
       <div className="habitat-sky" />
-      <div className="moon" />
+      <div className="habitat-room-line" />
+      <div className="habitat-status-wall" aria-hidden="true"><span /><i /></div>
+      <div className="habitat-door" aria-hidden="true"><span>19</span></div>
+      <div className="habitat-clock" aria-hidden="true" />
       <div className="habitat-window" aria-hidden="true">
         <span />
         <span />
@@ -641,18 +644,46 @@ function MissionEnvironment({ agents, stats, onSelectAgent }: { agents: AgentInf
       </div>
       <div className="habitat-floor" />
       <div className="habitat-path" aria-hidden="true" />
+      <div className="habitat-console-zone" aria-hidden="true"><span /><i /><i /></div>
+      <div className="habitat-server-alcove" aria-hidden="true"><span /><i /><i /><i /></div>
+      <div className="habitat-lounge" aria-hidden="true"><span /><i /></div>
+      <div className="habitat-nap-bed" aria-hidden="true"><span /><i /></div>
+      <div className="habitat-plant plant-left" aria-hidden="true"><span /><i /></div>
+      <div className="habitat-plant plant-right" aria-hidden="true"><span /><i /></div>
       {featured.map((agent, index) => <HabitatAgent key={agent.id} agent={agent} index={index} onSelectAgent={onSelectAgent} />)}
       <div className="environment-stats">
         <strong>{stats.busyAgents}</strong><span>busy</span>
         <strong>{stats.availableProviders}</strong><span>providers</span>
         <strong>{stats.activeTasks}</strong><span>active tasks</span>
       </div>
-      <div className="habitat-caption">State-driven diorama · work, check in, rest</div>
+      <div className="habitat-caption">State-driven ops room · work, regroup, rest</div>
     </div>
   );
 }
 
 type AgentBehavior = "busy" | "recent" | "idle" | "unknown";
+
+const figurePalettes = [
+  { skin: "#7b513c", hair: "#211d1b", shirt: "#9ea96e", pants: "#253b5d", shoes: "#263356", accent: "#f0e6c8" },
+  { skin: "#b88367", hair: "#2a2724", shirt: "#c96855", pants: "#6a625d", shoes: "#1f2630", accent: "#f4bd4f" },
+  { skin: "#c49a78", hair: "#5c6468", shirt: "#d8ded8", pants: "#4b6846", shoes: "#664936", accent: "#75a7e8" },
+  { skin: "#e0a17e", hair: "#b45e3e", shirt: "#4f93cf", pants: "#ded9c9", shoes: "#202832", accent: "#ffd76b" },
+  { skin: "#8c553c", hair: "#171515", shirt: "#e6bf5d", pants: "#d6a84b", shoes: "#22252a", accent: "#f7e9bd" },
+  { skin: "#d0a07f", hair: "#3b2b22", shirt: "#8d7bef", pants: "#48596f", shoes: "#2b3040", accent: "#6ed6a7" },
+] as const;
+
+function figureStyleForAgent(index: number): CSSProperties {
+  const palette = figurePalettes[index % figurePalettes.length];
+  return {
+    "--i": index,
+    "--skin": palette.skin,
+    "--hair": palette.hair,
+    "--shirt": palette.shirt,
+    "--pants": palette.pants,
+    "--shoe": palette.shoes,
+    "--figure-accent": palette.accent,
+  } as CSSProperties;
+}
 
 function behaviorForStatus(status: AgentInfo["status"]): { key: AgentBehavior; label: string } {
   if (status === "busy") return { key: "busy", label: "working at a console" };
@@ -667,7 +698,7 @@ function HabitatAgent({ agent, index, onSelectAgent }: { agent: AgentInfo; index
     <button
       type="button"
       className={`habitat-agent slot-${index} is-${behavior.key} status-${agent.status}`}
-      style={{ "--i": index } as CSSProperties}
+      style={figureStyleForAgent(index)}
       title={`${agent.name}: ${statusLabel(agent.status)} — ${behavior.label}`}
       aria-label={`${agent.name}: ${statusLabel(agent.status)}, ${behavior.label}`}
       onClick={() => onSelectAgent?.(agent)}
@@ -675,12 +706,17 @@ function HabitatAgent({ agent, index, onSelectAgent }: { agent: AgentInfo; index
       <div className="agent-motion">
         <AgentProp behavior={behavior.key} />
         <div className="figurine" aria-hidden="true">
-          <span className="figure-head"><span /></span>
-          <span className="figure-body"><span className="figure-badge">{agent.icon}</span></span>
+          <span className="figure-neck" />
+          <span className="figure-head"><span className="figure-face" /></span>
+          <span className="figure-body"><span className="figure-pin" /></span>
           <span className="figure-arm arm-left" />
           <span className="figure-arm arm-right" />
+          <span className="figure-hand hand-left" />
+          <span className="figure-hand hand-right" />
           <span className="figure-leg leg-left" />
           <span className="figure-leg leg-right" />
+          <span className="figure-shoe shoe-left" />
+          <span className="figure-shoe shoe-right" />
         </div>
         <span className="figure-shadow" />
         <span className="agent-name-tag">{agent.name}</span>
