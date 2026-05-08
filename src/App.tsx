@@ -50,6 +50,31 @@ function sourceLabel(source: string): string {
   return source.replace(/^~\/\.openclaw\//, "~/.openclaw/").replace(/\//g, " › ");
 }
 
+function useLocalClock(): { label: string; iso: string } {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return {
+    label: now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    iso: now.toISOString(),
+  };
+}
+
+function agentInitials(name: string): string {
+  return name
+    .split(/\s+|\//)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "A";
+}
+
 type RouteKey = "home" | "agents" | "providers" | "tasks" | "console";
 
 type RouteItem = {
@@ -296,7 +321,7 @@ function ShellSidebar({ route, stats, snapshot, connection, onNavigate }: { rout
           onNavigate("/");
         }}
       >
-        <span>🛰️</span>
+        <span className="brand-mark" aria-hidden="true" />
         <div>
           <strong>Mission Control</strong>
           <small>Operations room</small>
@@ -409,7 +434,7 @@ function AgentGlance({ agents, onSelectAgent, onNavigate }: { agents: AgentInfo[
       <div className="agent-pulse-list">
         {agents.slice(0, 6).map((agent) => (
           <button key={agent.id} type="button" onClick={() => onSelectAgent(agent)}>
-            <span className={`mini-status ${agent.status}`}>{agent.icon}</span>
+            <span className={`mini-status ${agent.status}`} aria-hidden="true"><span>{agentInitials(agent.name)}</span></span>
             <strong>{agent.name}</strong>
             <small>{statusLabel(agent.status)}</small>
           </button>
@@ -617,6 +642,7 @@ function AgentDetailDrawer({ agent, form, providers, selectedProvider, available
 }
 
 function MissionEnvironment({ agents, stats, onSelectAgent }: { agents: AgentInfo[]; stats: { busyAgents: number; activeAgents: number; availableProviders: number; activeTasks: number }; onSelectAgent?: (agent: AgentInfo) => void }) {
+  const clock = useLocalClock();
   const coreIds = new Set(["jarvis", "friday", "tadashi"]);
   const featured = [
     ...agents.filter((agent) => coreIds.has(agent.id)),
@@ -625,31 +651,49 @@ function MissionEnvironment({ agents, stats, onSelectAgent }: { agents: AgentInf
   ].filter((agent, index, list) => list.findIndex((candidate) => candidate.id === agent.id) === index).slice(0, 6);
 
   return (
-    <div className="environment-card" aria-label="Animated agent habitat showing live agent state">
-      <div className="habitat-sky" />
-      <div className="habitat-room-line" />
-      <div className="habitat-status-wall" aria-hidden="true"><span /><i /></div>
-      <div className="habitat-door" aria-hidden="true"><span>19</span></div>
-      <div className="habitat-clock" aria-hidden="true" />
-      <div className="habitat-window" aria-hidden="true">
+    <div className="environment-card" aria-label="Miniature operations-room diorama showing live agent state">
+      <div className="habitat-wall" aria-hidden="true" />
+      <div className="habitat-room-line" aria-hidden="true" />
+      <time className="habitat-digital-clock" dateTime={clock.iso} aria-label={`Local browser time ${clock.label}`}>
+        <span>Local time</span>
+        <strong>{clock.label}</strong>
+      </time>
+      <div className="habitat-status-wall" aria-hidden="true">
+        <strong>Status wall</strong>
         <span />
-        <span />
-        <span />
+        <i />
       </div>
       <div className="habitat-board" aria-hidden="true">
         <strong>Mission board</strong>
+        <div><span>Active</span><b>{stats.activeTasks}</b></div>
+        <div><span>Busy</span><b>{stats.busyAgents}</b></div>
+        <div><span>Providers</span><b>{stats.availableProviders}</b></div>
+      </div>
+      <div className="habitat-server-alcove" aria-hidden="true">
+        <strong>Provider alcove</strong>
+        <span />
         <i />
         <i />
         <i />
       </div>
-      <div className="habitat-floor" />
-      <div className="habitat-path" aria-hidden="true" />
-      <div className="habitat-console-zone" aria-hidden="true"><span /><i /><i /></div>
-      <div className="habitat-server-alcove" aria-hidden="true"><span /><i /><i /><i /></div>
-      <div className="habitat-lounge" aria-hidden="true"><span /><i /></div>
-      <div className="habitat-nap-bed" aria-hidden="true"><span /><i /></div>
-      <div className="habitat-plant plant-left" aria-hidden="true"><span /><i /></div>
-      <div className="habitat-plant plant-right" aria-hidden="true"><span /><i /></div>
+      <div className="habitat-floor" aria-hidden="true" />
+      <div className="habitat-path" aria-hidden="true"><span>Walkway</span></div>
+      <div className="habitat-console-zone" aria-hidden="true">
+        <strong>Work console</strong>
+        <span />
+        <i />
+        <i />
+      </div>
+      <div className="habitat-lounge" aria-hidden="true">
+        <strong>Chill nook</strong>
+        <span />
+        <i />
+      </div>
+      <div className="habitat-nap-bed" aria-hidden="true">
+        <strong>Nap nook</strong>
+        <span />
+        <i />
+      </div>
       {featured.map((agent, index) => <HabitatAgent key={agent.id} agent={agent} index={index} onSelectAgent={onSelectAgent} />)}
       <div className="environment-stats">
         <strong>{stats.busyAgents}</strong><span>busy</span>
@@ -687,7 +731,7 @@ function figureStyleForAgent(index: number): CSSProperties {
 
 function behaviorForStatus(status: AgentInfo["status"]): { key: AgentBehavior; label: string } {
   if (status === "busy") return { key: "busy", label: "working at a console" };
-  if (status === "recent") return { key: "recent", label: "walking the floor" };
+  if (status === "recent") return { key: "recent", label: "checking the mission board" };
   if (status === "idle") return { key: "idle", label: "resting in standby" };
   return { key: "unknown", label: "waiting for signal" };
 }
@@ -719,7 +763,7 @@ function HabitatAgent({ agent, index, onSelectAgent }: { agent: AgentInfo; index
           <span className="figure-shoe shoe-right" />
         </div>
         <span className="figure-shadow" />
-        <span className="agent-name-tag">{agent.name}</span>
+        <span className="agent-floor-plaque" aria-hidden="true">{agentInitials(agent.name)}</span>
       </div>
     </button>
   );

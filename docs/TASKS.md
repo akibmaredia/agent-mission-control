@@ -11,9 +11,9 @@
 
 ## In Progress
 
-- [ ] AMC-016 — Redesign home diorama and replace analog wall clock
-
 ## Review
+
+- [ ] AMC-016 — Redesign home diorama and replace analog wall clock
 
 ## Done
 
